@@ -3,7 +3,7 @@ app:
   version: "2.0.0"
 
 collection:
-  schedule_time: "06:00"
+  schedule_time: "07:00"
   timezone: "Asia/Tokyo"
   num_stories: 5
   sources:
