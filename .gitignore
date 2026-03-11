@@ -1,0 +1,34 @@
+# Environment
+.env
+venv/
+.venv/
+
+# Credentials
+credentials/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/*.log
+
+# Knowledge base data (generated)
+knowledge_base/daily/*.json
+knowledge_base/daily/*.md
+knowledge_base/monthly/*.md
+
+# OS
+.DS_Store
+Thumbs.db

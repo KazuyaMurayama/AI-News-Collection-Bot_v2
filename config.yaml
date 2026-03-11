@@ -1,0 +1,150 @@
+app:
+  name: "AI News Collector Bot"
+  version: "2.0.0"
+
+collection:
+  schedule_time: "06:00"
+  timezone: "Asia/Tokyo"
+  num_stories: 5
+  sources:
+    - name: "TechCrunch AI"
+      type: "rss"
+      url: "https://techcrunch.com/category/artificial-intelligence/feed/"
+      category: "海外テック"
+      language: "en"
+      enabled: true
+    - name: "VentureBeat AI"
+      type: "rss"
+      url: "https://venturebeat.com/category/ai/feed/"
+      category: "海外テック"
+      language: "en"
+      enabled: true
+    - name: "The Verge AI"
+      type: "rss"
+      url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"
+      category: "海外テック"
+      language: "en"
+      enabled: true
+    - name: "Reddit r/MachineLearning"
+      type: "rss"
+      url: "https://www.reddit.com/r/MachineLearning/.rss"
+      category: "コミュニティ"
+      language: "en"
+      enabled: true
+    - name: "Reddit r/artificial"
+      type: "rss"
+      url: "https://www.reddit.com/r/artificial/.rss"
+      category: "コミュニティ"
+      language: "en"
+      enabled: true
+    - name: "arXiv cs.AI"
+      type: "rss"
+      url: "http://export.arxiv.org/rss/cs.AI"
+      category: "学術"
+      language: "en"
+      enabled: true
+    - name: "arXiv cs.CL"
+      type: "rss"
+      url: "http://export.arxiv.org/rss/cs.CL"
+      category: "学術"
+      language: "en"
+      enabled: true
+    - name: "Hugging Face Blog"
+      type: "rss"
+      url: "https://huggingface.co/blog/feed.xml"
+      category: "学術"
+      language: "en"
+      enabled: true
+    - name: "ITmedia AI+"
+      type: "rss"
+      url: "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml"
+      category: "国内テック"
+      language: "ja"
+      enabled: true
+    - name: "Publickey"
+      type: "rss"
+      url: "https://www.publickey1.jp/atom.xml"
+      category: "国内テック"
+      language: "ja"
+      enabled: true
+    - name: "Hacker News"
+      type: "api"
+      url: "http://hn.algolia.com/api/v1"
+      query: "AI OR LLM OR GPT OR Claude"
+      category: "海外テック"
+      language: "en"
+      enabled: true
+    - name: "NewsAPI"
+      type: "api"
+      url: "https://newsapi.org/v2"
+      query: "artificial intelligence OR generative AI OR LLM"
+      category: "海外テック"
+      language: "en"
+      enabled: true
+
+claude:
+  model: "claude-sonnet-4-20250514"
+  max_tokens: 8192
+  temperature: 0.7
+  scoring_temperature: 0.3
+
+selection:
+  scoring_weights:
+    novelty: 5
+    surprise: 5
+    practicality: 5
+    japan_relevance: 3
+    freshness: 2
+  select_count: 5
+  freshness_hours: 24
+  dedup_similarity_threshold: 0.8
+
+delivery:
+  gmail:
+    enabled: true
+    auth_method: "smtp"
+    sender: "kazuya.murayama.21@gmail.com"
+    recipients:
+      - "kazuya.murayama.21@gmail.com"
+    subject_template: "[AIニュース] {date} - {headline} 他"
+    smtp:
+      host: "smtp.gmail.com"
+      port: 587
+      use_tls: true
+  line:
+    enabled: false
+
+feedback_server:
+  host: "127.0.0.1"
+  port: 8321
+  base_url: ""
+
+knowledge_base:
+  daily_dir: "./knowledge_base/daily"
+  monthly_dir: "./knowledge_base/monthly"
+  categories:
+    - "業務効率化"
+    - "創造支援"
+    - "コスト削減"
+    - "新規事業"
+    - "研究・学術"
+    - "ヘルスケア"
+    - "教育"
+    - "金融"
+    - "製造"
+    - "マーケティング"
+
+logging:
+  level: "INFO"
+  dir: "./logs/"
+  app_log: "app.log"
+  cron_log: "cron.log"
+  rotation: "daily"
+  retention_days: 30
+  format: "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
+
+retry:
+  max_attempts: 3
+  backoff_base: 1
+  backoff_multiplier: 2
+  max_wait: 30
