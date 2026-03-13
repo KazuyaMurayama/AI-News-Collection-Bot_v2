@@ -5,7 +5,7 @@ app:
 collection:
   schedule_time: "07:00"
   timezone: "Asia/Tokyo"
-  num_stories: 5
+  num_stories: 3
   sources:
     - name: "TechCrunch AI"
       type: "rss"
@@ -67,6 +67,12 @@ collection:
       category: "国内テック"
       language: "ja"
       enabled: true
+    - name: "Anthropic Blog"
+      type: "rss"
+      url: "https://www.anthropic.com/rss.xml"
+      category: "Anthropic AIエージェント"
+      language: "en"
+      enabled: true
     - name: "Hacker News"
       type: "api"
       url: "http://hn.algolia.com/api/v1"
@@ -74,11 +80,25 @@ collection:
       category: "海外テック"
       language: "en"
       enabled: true
+    - name: "Hacker News Anthropic"
+      type: "api"
+      url: "http://hn.algolia.com/api/v1"
+      query: "Claude Code OR Anthropic OR Claude agent OR MCP"
+      category: "Anthropic AIエージェント"
+      language: "en"
+      enabled: true
     - name: "NewsAPI"
       type: "api"
       url: "https://newsapi.org/v2"
       query: "artificial intelligence OR generative AI OR LLM"
       category: "海外テック"
+      language: "en"
+      enabled: true
+    - name: "NewsAPI Anthropic"
+      type: "api"
+      url: "https://newsapi.org/v2"
+      query: "Anthropic Claude OR Claude Code OR Claude AI agent"
+      category: "Anthropic AIエージェント"
       language: "en"
       enabled: true
 
@@ -95,7 +115,23 @@ selection:
     practicality: 5
     japan_relevance: 3
     freshness: 2
-  select_count: 5
+  select_count: 3
+  anthropic_slot:
+    enabled: true
+    count: 1
+    keywords:
+      - "Claude Code"
+      - "Claude"
+      - "Anthropic"
+      - "claude-co-work"
+      - "Claude agent"
+      - "MCP"
+      - "Model Context Protocol"
+      - "Claude Desktop"
+      - "Claude API"
+      - "Claude Sonnet"
+      - "Claude Opus"
+      - "Claude Haiku"
   freshness_hours: 24
   dedup_similarity_threshold: 0.8
 
@@ -123,6 +159,7 @@ knowledge_base:
   daily_dir: "./knowledge_base/daily"
   monthly_dir: "./knowledge_base/monthly"
   categories:
+    - "Anthropic AIエージェント"
     - "業務効率化"
     - "創造支援"
     - "コスト削減"

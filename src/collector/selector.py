@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import re
 from datetime import datetime, timezone
 
 import anthropic
@@ -10,6 +11,22 @@ import anthropic
 from ..utils.retry import with_retry
 
 logger = logging.getLogger(__name__)
+
+# Anthropic AIエージェント関連の判定キーワード（小文字で比較）
+ANTHROPIC_DEFAULT_KEYWORDS = [
+    "claude code",
+    "claude",
+    "anthropic",
+    "claude-co-work",
+    "claude agent",
+    "mcp",
+    "model context protocol",
+    "claude desktop",
+    "claude api",
+    "claude sonnet",
+    "claude opus",
+    "claude haiku",
+]
 
 
 class ArticleSelector:
@@ -19,7 +36,8 @@ class ArticleSelector:
         self.config = config
         self.claude_config = config.get("claude", {})
         self.selection_config = config.get("selection", {})
-        self.select_count = self.selection_config.get("select_count", 5)
+        self.select_count = self.selection_config.get("select_count", 3)
+        self.anthropic_slot_config = self.selection_config.get("anthropic_slot", {})
 
     def _deduplicate(self, articles: list[dict]) -> list[dict]:
         """URL完全一致 + タイトル完全一致（小文字化）で重複排除。"""
@@ -38,6 +56,21 @@ class ArticleSelector:
             unique.append(article)
 
         return unique
+
+    def _is_anthropic_related(self, article: dict) -> bool:
+        """記事がAnthropic AIエージェント関連かどうかを判定する。"""
+        keywords = self.anthropic_slot_config.get("keywords", ANTHROPIC_DEFAULT_KEYWORDS)
+        title = article.get("title", "").lower()
+        summary = article.get("summary", "").lower()
+        category = article.get("category", "").lower()
+        text = f"{title} {summary} {category}"
+
+        for kw in keywords:
+            kw_lower = kw.lower()
+            # 単語境界を考慮（"Claude" が "excluded" にマッチしないように）
+            if re.search(r'\b' + re.escape(kw_lower) + r'\b', text):
+                return True
+        return False
 
     @with_retry(max_attempts=3, backoff_base=2, retry_on=(Exception,))
     def _score_batch(self, articles: list[dict]) -> list[dict]:
@@ -113,13 +146,14 @@ class ArticleSelector:
         return sorted(articles, key=parse_date, reverse=True)
 
     def select(self, articles: list[dict]) -> list[dict]:
-        """記事を選定して上位N件を返す。"""
+        """記事を選定して上位N件を返す（うち1枠はAnthropic AIエージェント関連）。"""
         unique = self._deduplicate(articles)
         logger.info("重複排除後: %d 記事", len(unique))
 
         if not unique:
             return []
 
+        # スコアリング
         try:
             scored = self._score_batch(unique[:30])
             scored.sort(key=lambda a: a.get("score", 0), reverse=True)
@@ -127,6 +161,45 @@ class ArticleSelector:
             logger.error("スコアリング失敗、フォールバック使用: %s", e)
             scored = self._fallback_sort(unique)
 
-        selected = scored[: self.select_count]
-        logger.info("選定: %d 記事", len(selected))
+        # Anthropic枠が有効か
+        anthropic_enabled = self.anthropic_slot_config.get("enabled", True)
+        anthropic_count = self.anthropic_slot_config.get("count", 1)
+
+        if not anthropic_enabled or anthropic_count <= 0:
+            # Anthropic枠なし: 従来通り上位N件
+            selected = scored[: self.select_count]
+            logger.info("選定: %d 記事", len(selected))
+            return selected
+
+        # Anthropic関連記事と一般記事を分離
+        anthropic_articles = [a for a in scored if self._is_anthropic_related(a)]
+        general_articles = [a for a in scored if not self._is_anthropic_related(a)]
+
+        logger.info("Anthropic関連候補: %d 記事, 一般候補: %d 記事",
+                     len(anthropic_articles), len(general_articles))
+
+        selected: list[dict] = []
+
+        # 1. Anthropic枠を確保
+        anthropic_selected = anthropic_articles[:anthropic_count]
+        selected.extend(anthropic_selected)
+        if anthropic_selected:
+            logger.info("Anthropic枠: %s", [a.get("title", "")[:50] for a in anthropic_selected])
+        else:
+            logger.warning("Anthropic関連記事が見つかりませんでした。一般記事で補填します。")
+
+        # 2. 残り枠を一般記事で埋める
+        remaining = self.select_count - len(selected)
+        selected.extend(general_articles[:remaining])
+
+        # 3. Anthropic記事が見つからず枠が余った場合、スコア上位で補填
+        if len(selected) < self.select_count:
+            already_urls = {a.get("url", "") for a in selected}
+            for a in scored:
+                if len(selected) >= self.select_count:
+                    break
+                if a.get("url", "") not in already_urls:
+                    selected.append(a)
+
+        logger.info("選定: %d 記事 (Anthropic枠: %d)", len(selected), len(anthropic_selected))
         return selected

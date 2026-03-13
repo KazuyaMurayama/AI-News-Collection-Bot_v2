@@ -11,6 +11,7 @@ from ..utils.retry import with_retry
 logger = logging.getLogger(__name__)
 
 CATEGORY_TAGS = [
+    "Anthropic AIエージェント",
     "業務効率化", "創造支援", "コスト削減", "新規事業", "研究・学術",
     "ヘルスケア", "教育", "金融", "製造", "マーケティング",
 ]
