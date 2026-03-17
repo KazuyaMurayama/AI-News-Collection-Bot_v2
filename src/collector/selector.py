@@ -4,6 +4,8 @@ import json
 import logging
 import os
 import re
+import unicodedata
+from collections import Counter
 from datetime import datetime, timezone
 
 import anthropic
@@ -39,23 +41,67 @@ class ArticleSelector:
         self.select_count = self.selection_config.get("select_count", 3)
         self.anthropic_slot_config = self.selection_config.get("anthropic_slot", {})
 
+    @staticmethod
+    def _tokenize(text: str) -> list[str]:
+        """テキストを正規化してトークンに分割する。"""
+        text = unicodedata.normalize("NFKC", text).lower()
+        text = re.sub(r"[^\w\s]", " ", text)
+        return [t for t in text.split() if len(t) > 1]
+
+    @staticmethod
+    def _similarity(tokens_a: list[str], tokens_b: list[str]) -> float:
+        """2つのトークンリストのコサイン類似度を返す。"""
+        if not tokens_a or not tokens_b:
+            return 0.0
+        counter_a = Counter(tokens_a)
+        counter_b = Counter(tokens_b)
+        all_keys = set(counter_a) | set(counter_b)
+        dot = sum(counter_a.get(k, 0) * counter_b.get(k, 0) for k in all_keys)
+        mag_a = sum(v * v for v in counter_a.values()) ** 0.5
+        mag_b = sum(v * v for v in counter_b.values()) ** 0.5
+        if mag_a == 0 or mag_b == 0:
+            return 0.0
+        return dot / (mag_a * mag_b)
+
     def _deduplicate(self, articles: list[dict]) -> list[dict]:
-        """URL完全一致 + タイトル完全一致（小文字化）で重複排除。"""
+        """URL完全一致 + タイトル完全一致 + 類似度ベースで重複排除。"""
+        threshold = self.selection_config.get("dedup_similarity_threshold", 0.8)
         seen_urls: set[str] = set()
         seen_titles: set[str] = set()
-        unique: list[dict] = []
+        accepted: list[dict] = []
+        accepted_tokens: list[list[str]] = []
 
         for article in articles:
             url = article.get("url", "")
             title_lower = article.get("title", "").strip().lower()
-            if url in seen_urls or title_lower in seen_titles:
+
+            # 1. URL完全一致
+            if url in seen_urls:
                 continue
+            # 2. タイトル完全一致
+            if title_lower in seen_titles:
+                continue
+
+            # 3. タイトル+概要の類似度チェック
+            text = f"{article.get('title', '')} {article.get('summary', '')[:200]}"
+            tokens = self._tokenize(text)
+            is_similar = False
+            for prev_tokens in accepted_tokens:
+                if self._similarity(tokens, prev_tokens) >= threshold:
+                    is_similar = True
+                    logger.debug("類似記事を除外: %s", title_lower[:60])
+                    break
+
+            if is_similar:
+                continue
+
             seen_urls.add(url)
             if title_lower:
                 seen_titles.add(title_lower)
-            unique.append(article)
+            accepted.append(article)
+            accepted_tokens.append(tokens)
 
-        return unique
+        return accepted
 
     def _is_anthropic_related(self, article: dict) -> bool:
         """記事がAnthropic AIエージェント関連かどうかを判定する。"""
