@@ -132,7 +132,7 @@ selection:
       - "Claude Sonnet"
       - "Claude Opus"
       - "Claude Haiku"
-  freshness_hours: 24
+  freshness_hours: 72
   dedup_similarity_threshold: 0.55
 
 delivery:

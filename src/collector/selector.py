@@ -6,7 +6,7 @@ import os
 import re
 import unicodedata
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import anthropic
 
@@ -177,24 +177,47 @@ class ArticleSelector:
 
         return articles
 
+    @staticmethod
+    def _parse_date(article: dict) -> datetime:
+        """記事の公開日をパースする。"""
+        try:
+            raw = article.get("published", "")
+            if raw:
+                return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except Exception:
+            pass
+        return datetime.min.replace(tzinfo=timezone.utc)
+
+    def _filter_by_freshness(self, articles: list[dict]) -> list[dict]:
+        """freshness_hours以内の記事のみ残す。公開日が不明な記事も残す。"""
+        freshness_hours = self.selection_config.get("freshness_hours", 72)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=freshness_hours)
+
+        fresh: list[dict] = []
+        for article in articles:
+            pub_date = self._parse_date(article)
+            # 公開日が不明（datetime.min）の場合は除外せず残す
+            if pub_date == datetime.min.replace(tzinfo=timezone.utc):
+                fresh.append(article)
+            elif pub_date >= cutoff:
+                fresh.append(article)
+            else:
+                logger.debug("古い記事を除外: %s (%s)", article.get("title", "")[:50], pub_date.isoformat())
+
+        return fresh
+
     def _fallback_sort(self, articles: list[dict]) -> list[dict]:
         """API失敗時のフォールバック: 公開日時の新しい順。"""
-
-        def parse_date(a: dict) -> datetime:
-            try:
-                raw = a.get("published", "")
-                if raw:
-                    return datetime.fromisoformat(raw.replace("Z", "+00:00"))
-            except Exception:
-                pass
-            return datetime.min.replace(tzinfo=timezone.utc)
-
-        return sorted(articles, key=parse_date, reverse=True)
+        return sorted(articles, key=self._parse_date, reverse=True)
 
     def select(self, articles: list[dict]) -> list[dict]:
         """記事を選定して上位N件を返す（うち1枠はAnthropic AIエージェント関連）。"""
         unique = self._deduplicate(articles)
         logger.info("重複排除後: %d 記事", len(unique))
+
+        # 直近N時間以内の記事のみに絞り込む
+        unique = self._filter_by_freshness(unique)
+        logger.info("鮮度フィルタ後: %d 記事", len(unique))
 
         if not unique:
             return []
